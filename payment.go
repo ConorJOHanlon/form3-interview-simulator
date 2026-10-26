@@ -8,9 +8,24 @@ import (
 )
 
 const (
-	responseAccepted       = "RESPONSE|ACCEPTED|Transaction processed"
-	responseInvalidRequest = "RESPONSE|REJECTED|Invalid request"
-	responseInvalidAmount  = "RESPONSE|REJECTED|Invalid amount"
+	statusAccepted = "ACCEPTED"
+	statusRejected = "REJECTED"
+)
+
+// response is a scheme reply, sent on the wire as "RESPONSE|<status>|<reason>".
+type response struct {
+	status string
+	reason string
+}
+
+func (r response) String() string {
+	return "RESPONSE|" + r.status + "|" + r.reason
+}
+
+var (
+	responseAccepted       = response{status: statusAccepted, reason: "Transaction processed"}
+	responseInvalidRequest = response{status: statusRejected, reason: "Invalid request"}
+	responseInvalidAmount  = response{status: statusRejected, reason: "Invalid amount"}
 )
 
 const (
@@ -24,7 +39,7 @@ var (
 	errInvalidAmount  = errors.New("invalid amount")
 )
 
-func handleRequest(request string) string {
+func handleRequest(request string) response {
 	amount, err := parsePayment(request)
 	switch {
 	case errors.Is(err, errInvalidRequest):
