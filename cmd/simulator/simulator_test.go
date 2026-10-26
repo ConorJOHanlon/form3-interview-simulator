@@ -87,6 +87,22 @@ func TestSimulator(t *testing.T) {
 		assert.Less(t, time.Since(start), 500*time.Millisecond+tolerance)
 	})
 
+	t.Run("answers requests sent together on one connection in order", func(t *testing.T) {
+		srv := servertest.Start(t, server.Config{}, scheme.Handle)
+		client := servertest.Dial(t, srv.Addr)
+
+		start := time.Now()
+		client.SendRaw("PAYMENT|500\nPAYMENT|1\n")
+
+		// Both responses are identical, so order shows in the timing: if the
+		// instant payment overtook the delayed one, the first response would
+		// arrive immediately.
+		assert.Equal(t, "RESPONSE|ACCEPTED|Transaction processed", client.Receive())
+		assert.GreaterOrEqual(t, time.Since(start), 500*time.Millisecond, "PAYMENT|1 overtook PAYMENT|500")
+		assert.Equal(t, "RESPONSE|ACCEPTED|Transaction processed", client.Receive())
+		assert.Less(t, time.Since(start), 500*time.Millisecond+tolerance)
+	})
+
 	t.Run("completes short payments and cancels long ones on shutdown", func(t *testing.T) {
 		const gracePeriod = 300 * time.Millisecond
 		srv := servertest.Start(t, server.Config{GracePeriod: gracePeriod}, scheme.Handle)
