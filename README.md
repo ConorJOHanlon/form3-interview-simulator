@@ -16,6 +16,8 @@ go run ./cmd/simulator
 
 That's it. The simulator is now listening on `:8080`. Add `-h` for a quick summary of how to use it.
 
+Stopping it from a script, a process manager or your IDE's stop button? Use a [built binary](#build-a-binary) instead. `go run` passes Ctrl+C on to the simulator, but `kill` only stops `go run`, leaving the simulator running and holding the port.
+
 ### Send your first payment
 
 Open another terminal and send a few payments:
