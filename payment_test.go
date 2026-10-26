@@ -10,57 +10,96 @@ import (
 )
 
 func TestParsePayment(t *testing.T) {
-	tests := []struct {
-		name           string
-		request        string
-		expectedAmount int
-		expectedErr    error
+	t.Run("returns the amount of a valid request", func(t *testing.T) {
+		tests := map[string]struct {
+			request        string
+			expectedAmount int
+		}{
+			"small amount":     {request: "PAYMENT|10", expectedAmount: 10},
+			"amount above cap": {request: "PAYMENT|20000", expectedAmount: 20000},
+		}
+
+		for name, tt := range tests {
+			t.Run(name, func(t *testing.T) {
+				amount, err := parsePayment(tt.request)
+
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedAmount, amount)
+			})
+		}
+	})
+
+	t.Run("rejects a malformed request", func(t *testing.T) {
+		tests := map[string]string{
+			"empty request":          "",
+			"unknown message type":   "INVALID|100",
+			"lowercase message type": "payment|100",
+			"missing separator":      "PAYMENT100",
+			"too many fields":        "PAYMENT|100|extra",
+		}
+
+		for name, request := range tests {
+			t.Run(name, func(t *testing.T) {
+				_, err := parsePayment(request)
+
+				assert.ErrorIs(t, err, errInvalidRequest)
+			})
+		}
+	})
+
+	t.Run("rejects an invalid amount", func(t *testing.T) {
+		tests := map[string]string{
+			"empty amount":           "PAYMENT|",
+			"non-numeric amount":     "PAYMENT|abc",
+			"decimal amount":         "PAYMENT|10.5",
+			"amount with whitespace": "PAYMENT| 10",
+			"amount overflowing int": "PAYMENT|99999999999999999999",
+		}
+
+		for name, request := range tests {
+			t.Run(name, func(t *testing.T) {
+				_, err := parsePayment(request)
+
+				assert.ErrorIs(t, err, errInvalidAmount)
+			})
+		}
+	})
+}
+
+func TestProcessingDelay(t *testing.T) {
+	tests := map[string]struct {
+		amount        int
+		expectedDelay time.Duration
 	}{
-		{name: "valid amount", request: "PAYMENT|10", expectedAmount: 10},
-		{name: "large amount", request: "PAYMENT|20000", expectedAmount: 20000},
-
-		{name: "empty request", request: "", expectedErr: errInvalidRequest},
-		{name: "unknown message type", request: "INVALID|100", expectedErr: errInvalidRequest},
-		{name: "lowercase message type", request: "payment|100", expectedErr: errInvalidRequest},
-		{name: "missing separator", request: "PAYMENT100", expectedErr: errInvalidRequest},
-		{name: "too many fields", request: "PAYMENT|100|extra", expectedErr: errInvalidRequest},
-
-		{name: "empty amount", request: "PAYMENT|", expectedErr: errInvalidAmount},
-		{name: "non-numeric amount", request: "PAYMENT|abc", expectedErr: errInvalidAmount},
-		{name: "decimal amount", request: "PAYMENT|10.5", expectedErr: errInvalidAmount},
-		{name: "amount with whitespace", request: "PAYMENT| 10", expectedErr: errInvalidAmount},
-		{name: "amount overflowing int", request: "PAYMENT|99999999999999999999", expectedErr: errInvalidAmount},
+		"no delay for smallest amount":        {amount: 1, expectedDelay: 0},
+		"no delay at threshold":               {amount: 100, expectedDelay: 0},
+		"delay equals amount above threshold": {amount: 101, expectedDelay: 101 * time.Millisecond},
+		"delay equals amount just below cap":  {amount: 9999, expectedDelay: 9999 * time.Millisecond},
+		"delay is capped at cap":              {amount: 10000, expectedDelay: maxDelay},
+		"delay is capped above cap":           {amount: 10001, expectedDelay: maxDelay},
+		"delay is capped without overflow":    {amount: math.MaxInt, expectedDelay: maxDelay},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			amount, err := parsePayment(tt.request)
-
-			if tt.expectedErr != nil {
-				require.ErrorIs(t, err, tt.expectedErr)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.expectedAmount, amount)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedDelay, processingDelay(tt.amount))
 		})
 	}
 }
 
-func TestProcessingDelay(t *testing.T) {
-	tests := []struct {
-		amount        int
-		expectedDelay time.Duration
+func TestHandleRequest(t *testing.T) {
+	tests := map[string]struct {
+		request          string
+		expectedResponse response
 	}{
-		{amount: 1, expectedDelay: 0},
-		{amount: 100, expectedDelay: 0},
-		{amount: 101, expectedDelay: 101 * time.Millisecond},
-		{amount: 9999, expectedDelay: 9999 * time.Millisecond},
-		{amount: 10000, expectedDelay: 10 * time.Second},
-		{amount: 10001, expectedDelay: 10 * time.Second},
-		{amount: math.MaxInt, expectedDelay: 10 * time.Second},
+		"accepts a valid payment":     {request: "PAYMENT|10", expectedResponse: responseAccepted},
+		"rejects a malformed request": {request: "INVALID|10", expectedResponse: responseInvalidRequest},
+		"rejects an invalid amount":   {request: "PAYMENT|abc", expectedResponse: responseInvalidAmount},
 	}
 
-	for _, tt := range tests {
-		assert.Equal(t, tt.expectedDelay, processingDelay(tt.amount), "amount %d", tt.amount)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedResponse, handleRequest(tt.request))
+		})
 	}
 }
