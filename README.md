@@ -88,6 +88,14 @@ go test -fuzz=FuzzParsePayment -fuzztime=30s ./internal/scheme  # 🎲 throw ran
 
 
 
+### Test the real process
+
+A separate suite runs the simulator as its own process, to check what the other tests can't: command-line handling, exit codes, and real `SIGINT`/`SIGTERM` signals. It needs macOS or Linux.
+
+```sh
+go test -race -tags=integration ./cmd/simulator  # 🖥️ adds the process tests
+```
+
 ### Test layers
 
 
@@ -96,6 +104,7 @@ go test -fuzz=FuzzParsePayment -fuzztime=30s ./internal/scheme  # 🎲 throw ran
 | 🧩 `internal/scheme` | Parsing, validation, delays and cancellation. No network needed.                                                             |
 | 🔌 `internal/server` | Connections, request framing and graceful shutdown, using stub handlers so every test controls exactly when requests finish. |
 | 🌍 `cmd/simulator`   | End to end: the real scheme over real TCP, shutdown included.                                                                |
+| 🖥️ `cmd/simulator` with `-tags=integration` | The real process: command-line handling, exit codes and signals. |
 
 
 
@@ -108,4 +117,3 @@ internal/scheme/             💳 the payment protocol: parsing, validation, pro
 internal/server/             🔌 a protocol-agnostic TCP server with graceful shutdown
 internal/server/servertest/  🧰 test helpers: a server on a random port and a test client
 ```
-
