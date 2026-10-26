@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -85,5 +86,67 @@ func TestServer(t *testing.T) {
 
 		_, err := net.Dial("tcp", srv.Addr)
 		assert.Error(t, err)
+	})
+}
+
+func TestRequestFraming(t *testing.T) {
+	t.Run("strips a trailing carriage return", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		client.Send("request\r")
+
+		assert.Equal(t, "echo:request", client.Receive())
+	})
+
+	t.Run("passes an empty line to the handler", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		client.Send("")
+
+		assert.Equal(t, "echo:", client.Receive())
+	})
+
+	t.Run("reassembles a request split across writes", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		client.SendRaw("req")
+		client.SendRaw("uest\n")
+
+		assert.Equal(t, "echo:request", client.Receive())
+	})
+
+	t.Run("splits several requests sent in one write", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		client.SendRaw("first\nsecond\n")
+
+		assert.Equal(t, "echo:first", client.Receive())
+		assert.Equal(t, "echo:second", client.Receive())
+	})
+
+	t.Run("discards a request without a terminator when the client closes", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		client.SendRaw("request")
+		client.CloseWrite()
+
+		client.RequireClosed()
+	})
+
+	t.Run("accepts a request of the maximum length", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+		request := strings.Repeat("a", server.MaxRequestLength-1)
+
+		client.Send(request)
+
+		assert.Equal(t, "echo:"+request, client.Receive())
+	})
+
+	t.Run("closes the connection on a request over the maximum length", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		client.Send(strings.Repeat("a", server.MaxRequestLength))
+
+		client.RequireClosed()
 	})
 }
