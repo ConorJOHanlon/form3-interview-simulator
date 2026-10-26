@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 )
 
 // MaxRequestLength is the longest request line accepted, including its
@@ -18,7 +19,7 @@ const MaxRequestLength = 1024
 var errIncompleteRequest = errors.New("connection closed before request was terminated")
 
 // handleConnection serves requests from conn one at a time until the client
-// disconnects.
+// disconnects or ctx is cancelled.
 func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
@@ -26,17 +27,23 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	logger.Debug("connection opened")
 	defer logger.Debug("connection closed")
 
+	// Once ctx is cancelled, stop waiting for the next request. Only reads are
+	// interrupted, so the response to an in-flight request can still be sent.
+	stop := context.AfterFunc(ctx, func() { conn.SetReadDeadline(time.Now()) })
+	defer stop()
+
 	reader := bufio.NewReaderSize(conn, MaxRequestLength)
 	for {
 		request, err := readRequest(reader)
-		switch {
-		case errors.Is(err, io.EOF):
-			return
-		case errors.Is(err, bufio.ErrBufferFull):
-			logger.Warn("request too long, closing connection", "max_length", MaxRequestLength)
-			return
-		case err != nil:
-			logger.Debug("failed to read request", "error", err)
+		if err != nil {
+			switch {
+			case ctx.Err() != nil:
+				logger.Debug("closing connection after grace period")
+			case errors.Is(err, bufio.ErrBufferFull):
+				logger.Warn("request too long, closing connection", "max_length", MaxRequestLength)
+			case !errors.Is(err, io.EOF):
+				logger.Debug("failed to read request", "error", err)
+			}
 			return
 		}
 

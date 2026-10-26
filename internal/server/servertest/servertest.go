@@ -35,12 +35,18 @@ type Server struct {
 }
 
 // Start serves handler on a random loopback port. cfg.Addr is ignored. The
-// server is shut down, and must stop, before the test ends.
+// server is shut down, and must stop, before the test ends. Register clients
+// after starting the server so they are closed first, letting it stop without
+// waiting out its grace period.
 func Start(t testing.TB, cfg server.Config, handler server.Handler) *Server {
 	t.Helper()
 
 	cfg.Addr = "127.0.0.1:0"
-	srv, err := server.New(cfg, handler, slog.New(slog.DiscardHandler))
+	// Server logs appear in the test output, shown when a test fails or with
+	// -v. Serve waits for every connection to close, so nothing logs after
+	// the test ends.
+	logger := slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
+	srv, err := server.New(cfg, handler, logger)
 	if err != nil {
 		t.Fatalf("start server: %v", err)
 	}

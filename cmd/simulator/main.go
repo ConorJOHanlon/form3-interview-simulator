@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/form3tech-oss/interview-simulator/internal/scheme"
 	"github.com/form3tech-oss/interview-simulator/internal/server"
@@ -14,6 +15,9 @@ import (
 
 var config = server.Config{
 	Addr: ":8080",
+	// Must stay below the platform's termination timeout (30s by default on
+	// Kubernetes), or in-flight requests are killed without a response.
+	GracePeriod: 3 * time.Second,
 }
 
 func main() {

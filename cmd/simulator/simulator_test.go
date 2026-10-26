@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/form3tech-oss/interview-simulator/internal/scheme"
 	"github.com/form3tech-oss/interview-simulator/internal/server"
@@ -85,4 +86,32 @@ func TestSimulator(t *testing.T) {
 
 		assert.Less(t, time.Since(start), 500*time.Millisecond+tolerance)
 	})
+
+	t.Run("completes short payments and cancels long ones on shutdown", func(t *testing.T) {
+		const gracePeriod = 300 * time.Millisecond
+		srv := servertest.Start(t, server.Config{GracePeriod: gracePeriod}, scheme.Handle)
+		short, long, idle := connect(t, srv.Addr), connect(t, srv.Addr), connect(t, srv.Addr)
+
+		short.Send("PAYMENT|200")
+		long.Send("PAYMENT|5000")
+		start := time.Now()
+		srv.Shutdown()
+
+		assert.Equal(t, "RESPONSE|ACCEPTED|Transaction processed", short.Receive())
+		assert.Equal(t, "RESPONSE|REJECTED|Cancelled", long.Receive())
+		assert.InDelta(t, gracePeriod, time.Since(start), float64(tolerance), "long payment not cancelled at the end of the grace period")
+		short.RequireClosed()
+		long.RequireClosed()
+		idle.RequireClosed()
+	})
+}
+
+// connect returns a client the server has already accepted, proven by a
+// completed request, so a shutdown that follows can't race the accept.
+func connect(t *testing.T, addr string) *servertest.Client {
+	t.Helper()
+	client := servertest.Dial(t, addr)
+	client.Send("PAYMENT|1")
+	require.Equal(t, "RESPONSE|ACCEPTED|Transaction processed", client.Receive())
+	return client
 }

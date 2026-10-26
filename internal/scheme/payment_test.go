@@ -108,4 +108,34 @@ func TestHandle(t *testing.T) {
 			assert.Equal(t, tt.expectedResponse, Handle(context.Background(), tt.request))
 		})
 	}
+
+	t.Run("cancels a payment that is still processing when the context is cancelled", func(t *testing.T) {
+		const cancelAfter = 50 * time.Millisecond
+		ctx, cancel := context.WithTimeout(context.Background(), cancelAfter)
+		defer cancel()
+
+		start := time.Now()
+		response := Handle(ctx, "PAYMENT|5000")
+		elapsed := time.Since(start)
+
+		assert.Equal(t, "RESPONSE|REJECTED|Cancelled", response)
+		assert.GreaterOrEqual(t, elapsed, cancelAfter)
+		assert.Less(t, elapsed, cancelAfter+50*time.Millisecond, "processing was not interrupted")
+	})
+
+	t.Run("cancels a payment received after the context is cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		for _, request := range []string{"PAYMENT|10", "PAYMENT|5000"} {
+			assert.Equal(t, "RESPONSE|REJECTED|Cancelled", Handle(ctx, request), request)
+		}
+	})
+
+	t.Run("still rejects invalid requests after the context is cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		assert.Equal(t, "RESPONSE|REJECTED|Invalid amount", Handle(ctx, "PAYMENT|0"))
+	})
 }

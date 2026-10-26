@@ -21,7 +21,8 @@ var (
 )
 
 // Handle processes a single request and returns the response to send back.
-// It has the signature of server.Handler.
+// A payment still being processed when ctx is cancelled is rejected as
+// cancelled. Handle has the signature of server.Handler.
 func Handle(ctx context.Context, request string) string {
 	amount, err := parsePayment(request)
 	switch {
@@ -31,9 +32,30 @@ func Handle(ctx context.Context, request string) string {
 		return responseInvalidAmount.String()
 	}
 
-	time.Sleep(processingDelay(amount))
+	if !sleep(ctx, processingDelay(amount)) {
+		return responseCancelled.String()
+	}
 
 	return responseAccepted.String()
+}
+
+// sleep waits for d and reports whether it did so before ctx was cancelled.
+func sleep(ctx context.Context, d time.Duration) bool {
+	// Checked first so a payment arriving after cancellation is never
+	// accepted, even when it has no delay.
+	if ctx.Err() != nil {
+		return false
+	}
+
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // parsePayment parses a "PAYMENT|<amount>" request and returns the amount.

@@ -19,4 +19,5 @@ var (
 	responseAccepted       = response{status: statusAccepted, reason: "Transaction processed"}
 	responseInvalidRequest = response{status: statusRejected, reason: "Invalid request"}
 	responseInvalidAmount  = response{status: statusRejected, reason: "Invalid amount"}
+	responseCancelled      = response{status: statusRejected, reason: "Cancelled"}
 )
