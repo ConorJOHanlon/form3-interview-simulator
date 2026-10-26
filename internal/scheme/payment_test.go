@@ -22,6 +22,7 @@ func TestParsePayment(t *testing.T) {
 			"small amount":     {request: "PAYMENT|10", expectedAmount: 10},
 			"amount above cap": {request: "PAYMENT|20000", expectedAmount: 20000},
 			"leading zeros":    {request: "PAYMENT|007", expectedAmount: 7},
+			"largest int":      {request: "PAYMENT|" + strconv.Itoa(math.MaxInt), expectedAmount: math.MaxInt},
 		}
 
 		for name, tt := range tests {
@@ -41,6 +42,10 @@ func TestParsePayment(t *testing.T) {
 			"lowercase message type": "payment|100",
 			"missing separator":      "PAYMENT100",
 			"too many fields":        "PAYMENT|100|extra",
+			"empty field":            "PAYMENT||100",
+			"message type only":      "PAYMENT",
+			"empty message type":     "|100",
+			"leading whitespace":     " PAYMENT|100",
 		}
 
 		for name, request := range tests {
@@ -58,11 +63,16 @@ func TestParsePayment(t *testing.T) {
 			"non-numeric amount":     "PAYMENT|abc",
 			"decimal amount":         "PAYMENT|10.5",
 			"amount with whitespace": "PAYMENT| 10",
-			"amount overflowing int": "PAYMENT|99999999999999999999",
+			"amount overflowing int": "PAYMENT|" + strconv.FormatUint(uint64(math.MaxInt)+1, 10),
 			"zero amount":            "PAYMENT|0",
 			"all zeros amount":       "PAYMENT|000",
 			"negative amount":        "PAYMENT|-5",
 			"explicitly signed":      "PAYMENT|+5",
+			"trailing whitespace":    "PAYMENT|10 ",
+			"exponent notation":      "PAYMENT|1e3",
+			"hexadecimal":            "PAYMENT|0x10",
+			"digit separators":       "PAYMENT|1_000",
+			"non-ASCII digits":       "PAYMENT|١٠",
 		}
 
 		for name, request := range tests {
