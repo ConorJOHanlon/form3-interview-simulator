@@ -117,3 +117,13 @@ internal/scheme/             💳 the payment protocol: parsing, validation, pro
 internal/server/             🔌 a protocol-agnostic TCP server with graceful shutdown
 internal/server/servertest/  🧰 test helpers: a server on a random port and a test client
 ```
+
+## 💬 Questions and bugs
+
+Got a question, or found something that doesn't behave the way this README says? Email me at [cohanlon1995@gmail.com](mailto:cohanlon1995@gmail.com).
+
+If you're reporting a bug, it helps to include:
+
+- the request you sent, exactly as sent (including any `\r` or missing `\n`)
+- the response you got, or that you got none
+- the matching `request handled` line from the simulator's log
