@@ -32,6 +32,15 @@ func main() {
 func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// Restore default signal handling once shutdown starts, so a second
+	// signal exits immediately instead of waiting out the grace period.
+	stopSignalCallback := context.AfterFunc(ctx, func() {
+		stop()
+		logger.Info("shutdown signal received, send it again to exit immediately")
+	})
+
+	// Disable the callback before deferred stop cancels ctx on an error.
+	defer stopSignalCallback()
 
 	srv, err := server.New(config, scheme.Handle, logger)
 	if err != nil {
