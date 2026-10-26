@@ -61,8 +61,7 @@ Where the brief left room for interpretation, here's what I decided and why.
 
 ## 🧪 Testing and scope
 
-- **Process integration tests.** An opt-in `integration` build tag adds a fourth layer: separate OS processes running the real entry point, driven by TCP clients and actual signals. The test helper changes only the child process configuration (a random loopback port and scenario-specific grace period), so instances can run concurrently without production flags or fixed-port conflicts. Go verbose output provides the scenario report, and `-json` supports automation. This verifies application startup and signal wiring; packaging is outside its scope.
-- **Test layers.** Scheme unit tests (no network), server tests with stub handlers, and end-to-end tests of the real scheme over TCP. Each test starts its own server on `127.0.0.1:0`. Timing checks use real time with roughly 50ms tolerance, as the brief allows. Tests run with `-race`, and `-short` skips the 10-second delay test.
+- **Test layers.** Scheme unit tests (no network), server tests with stub handlers, and end-to-end tests of the real scheme over TCP. An opt-in `integration` build tag adds process tests, which run the real binary to check command-line handling, exit codes and signals. Each test starts its own server on `127.0.0.1:0`. Timing checks use real time with roughly 50ms tolerance, as the brief allows. Tests run with `-race`, and `-short` skips the 10-second delay test.
 - **No queue or worker pool.** Each connection has its own goroutine, and processing is a timer, not CPU work. Queueing would push responses past the delay the scheme specifies. A CPU-bound or rate-limited scheme would instead cap the requests in progress and reject the excess with an explicit response.
 - **Out of scope**, per the brief: metrics, tracing, health checks, rate limiting, release artifacts, and half-open connections or network partitions.
 

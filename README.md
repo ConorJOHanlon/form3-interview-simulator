@@ -73,7 +73,7 @@ In a hurry? ⚡ Press **Ctrl+C** again to exit immediately.
 
 ### Change the settings
 
-The address and grace period live in `[cmd/simulator/main.go](cmd/simulator/main.go)`.
+The address and grace period live in [`cmd/simulator/main.go`](cmd/simulator/main.go).
 
 ## 🧪 Testing
 
