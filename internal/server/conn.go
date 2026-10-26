@@ -47,7 +47,10 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 			return
 		}
 
+		start := time.Now()
 		response := s.handler(ctx, request)
+		logger.Info("request handled", "request", request, "response", response, "duration", time.Since(start))
+
 		if _, err := fmt.Fprintf(conn, "%s\n", response); err != nil {
 			logger.Debug("failed to write response", "error", err)
 			return

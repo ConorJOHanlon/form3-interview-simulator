@@ -92,7 +92,7 @@ func (s *Server) acceptConnections(ctx, requestCtx context.Context) error {
 	stop := context.AfterFunc(ctx, func() { s.listener.Close() })
 	defer stop()
 
-	s.logger.Info("listening", "addr", s.Addr())
+	s.logger.Info("listening", "addr", s.Addr(), "grace_period", s.gracePeriod)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
