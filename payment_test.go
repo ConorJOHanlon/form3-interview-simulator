@@ -17,6 +17,7 @@ func TestParsePayment(t *testing.T) {
 		}{
 			"small amount":     {request: "PAYMENT|10", expectedAmount: 10},
 			"amount above cap": {request: "PAYMENT|20000", expectedAmount: 20000},
+			"leading zeros":    {request: "PAYMENT|007", expectedAmount: 7},
 		}
 
 		for name, tt := range tests {
@@ -54,6 +55,10 @@ func TestParsePayment(t *testing.T) {
 			"decimal amount":         "PAYMENT|10.5",
 			"amount with whitespace": "PAYMENT| 10",
 			"amount overflowing int": "PAYMENT|99999999999999999999",
+			"zero amount":            "PAYMENT|0",
+			"all zeros amount":       "PAYMENT|000",
+			"negative amount":        "PAYMENT|-5",
+			"explicitly signed":      "PAYMENT|+5",
 		}
 
 		for name, request := range tests {

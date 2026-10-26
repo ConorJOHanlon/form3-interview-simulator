@@ -60,12 +60,21 @@ func parsePayment(request string) (int, error) {
 		return 0, errInvalidRequest
 	}
 
+	// Atoi alone would also accept signed values such as "+5" and "-5".
+	if strings.ContainsFunc(parts[1], isNotDigit) {
+		return 0, errInvalidAmount
+	}
+
 	amount, err := strconv.Atoi(parts[1])
-	if err != nil {
+	if err != nil || amount < 1 {
 		return 0, errInvalidAmount
 	}
 
 	return amount, nil
+}
+
+func isNotDigit(r rune) bool {
+	return r < '0' || r > '9'
 }
 
 // processingDelay simulates counterparty processing time: one millisecond per
