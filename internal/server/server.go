@@ -24,7 +24,8 @@ type Config struct {
 	// Addr is the TCP address to listen on, for example ":8080".
 	Addr string
 	// GracePeriod is how long existing connections keep being served after
-	// shutdown starts, before in-flight requests are cancelled.
+	// shutdown starts, before in-flight requests are cancelled. Zero or less
+	// cancels them as soon as shutdown starts.
 	GracePeriod time.Duration
 }
 
