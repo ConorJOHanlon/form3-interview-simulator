@@ -73,21 +73,23 @@ func TestParsePayment(t *testing.T) {
 }
 
 func TestProcessingDelay(t *testing.T) {
-	tests := map[string]struct {
+	// Ordered by amount so the boundaries read in sequence.
+	tests := []struct {
+		name          string
 		amount        int
 		expectedDelay time.Duration
 	}{
-		"no delay for smallest amount":        {amount: 1, expectedDelay: 0},
-		"no delay at threshold":               {amount: 100, expectedDelay: 0},
-		"delay equals amount above threshold": {amount: 101, expectedDelay: 101 * time.Millisecond},
-		"delay equals amount just below cap":  {amount: 9999, expectedDelay: 9999 * time.Millisecond},
-		"delay is capped at cap":              {amount: 10000, expectedDelay: maxDelay},
-		"delay is capped above cap":           {amount: 10001, expectedDelay: maxDelay},
-		"delay is capped without overflow":    {amount: math.MaxInt, expectedDelay: maxDelay},
+		{name: "no delay for smallest amount", amount: 1, expectedDelay: 0},
+		{name: "no delay at threshold", amount: 100, expectedDelay: 0},
+		{name: "delay equals amount above threshold", amount: 101, expectedDelay: 101 * time.Millisecond},
+		{name: "delay equals amount just below cap", amount: 9999, expectedDelay: 9999 * time.Millisecond},
+		{name: "delay is capped at cap", amount: 10000, expectedDelay: maxDelay},
+		{name: "delay is capped above cap", amount: 10001, expectedDelay: maxDelay},
+		{name: "delay is capped without overflow", amount: math.MaxInt, expectedDelay: maxDelay},
 	}
 
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expectedDelay, processingDelay(tt.amount))
 		})
 	}

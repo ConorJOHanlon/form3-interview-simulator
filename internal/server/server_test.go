@@ -16,6 +16,11 @@ import (
 	"github.com/form3tech-oss/interview-simulator/internal/server/servertest"
 )
 
+// These tests use stub handlers instead of the payment scheme, so connection
+// handling and shutdown are tested in isolation, with each test controlling
+// exactly when its requests complete. End-to-end tests with the real scheme
+// live in cmd/simulator.
+
 // echo responds to every request with the request itself.
 func echo(_ context.Context, request string) string {
 	return "echo:" + request
