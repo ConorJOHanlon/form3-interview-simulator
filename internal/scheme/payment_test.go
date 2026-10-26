@@ -1,6 +1,7 @@
-package main
+package scheme
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
@@ -92,19 +93,19 @@ func TestProcessingDelay(t *testing.T) {
 	}
 }
 
-func TestHandleRequest(t *testing.T) {
+func TestHandle(t *testing.T) {
 	tests := map[string]struct {
 		request          string
-		expectedResponse response
+		expectedResponse string
 	}{
-		"accepts a valid payment":     {request: "PAYMENT|10", expectedResponse: responseAccepted},
-		"rejects a malformed request": {request: "INVALID|10", expectedResponse: responseInvalidRequest},
-		"rejects an invalid amount":   {request: "PAYMENT|abc", expectedResponse: responseInvalidAmount},
+		"accepts a valid payment":     {request: "PAYMENT|10", expectedResponse: "RESPONSE|ACCEPTED|Transaction processed"},
+		"rejects a malformed request": {request: "INVALID|10", expectedResponse: "RESPONSE|REJECTED|Invalid request"},
+		"rejects an invalid amount":   {request: "PAYMENT|abc", expectedResponse: "RESPONSE|REJECTED|Invalid amount"},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedResponse, handleRequest(tt.request))
+			assert.Equal(t, tt.expectedResponse, Handle(context.Background(), tt.request))
 		})
 	}
 }

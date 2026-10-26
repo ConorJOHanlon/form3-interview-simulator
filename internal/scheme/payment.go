@@ -1,31 +1,12 @@
-package main
+// Package scheme simulates how the payment scheme handles requests.
+package scheme
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
 	"time"
-)
-
-const (
-	statusAccepted = "ACCEPTED"
-	statusRejected = "REJECTED"
-)
-
-// response is a scheme reply, sent on the wire as "RESPONSE|<status>|<reason>".
-type response struct {
-	status string
-	reason string
-}
-
-func (r response) String() string {
-	return "RESPONSE|" + r.status + "|" + r.reason
-}
-
-var (
-	responseAccepted       = response{status: statusAccepted, reason: "Transaction processed"}
-	responseInvalidRequest = response{status: statusRejected, reason: "Invalid request"}
-	responseInvalidAmount  = response{status: statusRejected, reason: "Invalid amount"}
 )
 
 const (
@@ -39,18 +20,20 @@ var (
 	errInvalidAmount  = errors.New("invalid amount")
 )
 
-func handleRequest(request string) response {
+// Handle processes a single request and returns the response to send back.
+// It has the signature of server.Handler.
+func Handle(ctx context.Context, request string) string {
 	amount, err := parsePayment(request)
 	switch {
 	case errors.Is(err, errInvalidRequest):
-		return responseInvalidRequest
+		return responseInvalidRequest.String()
 	case errors.Is(err, errInvalidAmount):
-		return responseInvalidAmount
+		return responseInvalidAmount.String()
 	}
 
 	time.Sleep(processingDelay(amount))
 
-	return responseAccepted
+	return responseAccepted.String()
 }
 
 // parsePayment parses a "PAYMENT|<amount>" request and returns the amount.
