@@ -3,7 +3,10 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,12 +24,53 @@ var config = server.Config{
 }
 
 func main() {
+	// The simulator takes no flags, but parsing gives -h a usage message and
+	// rejects anything else rather than silently starting a server.
+	flag.Usage = usage
+	flag.Parse()
+	if flag.NArg() > 0 {
+		fmt.Fprintf(flag.CommandLine.Output(), "unexpected argument: %s\n", flag.Arg(0))
+		flag.Usage()
+		os.Exit(2)
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	if err := run(logger); err != nil {
 		logger.Error("simulator failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func usage() {
+	_, port, _ := net.SplitHostPort(config.Addr)
+	fmt.Fprintf(flag.CommandLine.Output(), `💸 Payment Scheme Simulator
+
+Simulates the payment scheme over TCP, for testing payment clients.
+
+USAGE
+  simulator [-h]
+
+SETTINGS (set in cmd/simulator/main.go)
+  Address        %[1]s
+  Grace period   %[2]v
+
+PROTOCOL
+  Request        PAYMENT|<amount>, terminated by a newline
+  Response       RESPONSE|ACCEPTED|<reason> or RESPONSE|REJECTED|<reason>
+  Delay          amounts over 100 take <amount> ms, up to 10s
+
+TRY IT
+  $ nc localhost %[3]s
+  PAYMENT|500
+  RESPONSE|ACCEPTED|Transaction processed
+
+SHUTDOWN
+  Ctrl+C         stop accepting connections; cancel unfinished payments after %[2]v
+  Ctrl+C again   exit immediately
+
+Every request is logged to stderr with its response and duration.
+`, config.Addr, config.GracePeriod, port)
 }
 
 func run(logger *slog.Logger) error {
