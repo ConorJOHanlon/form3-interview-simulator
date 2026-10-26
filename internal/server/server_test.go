@@ -133,9 +133,10 @@ func TestRequestFraming(t *testing.T) {
 	t.Run("discards a request without a terminator when the client closes", func(t *testing.T) {
 		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
 
-		client.SendRaw("request")
+		client.SendRaw("complete\npartial")
 		client.CloseWrite()
 
+		assert.Equal(t, "echo:complete", client.Receive())
 		client.RequireClosed()
 	})
 
@@ -191,7 +192,7 @@ func TestGracefulShutdown(t *testing.T) {
 		srv := servertest.Start(t, server.Config{GracePeriod: longGracePeriod}, handler.handle)
 		client := servertest.Dial(t, srv.Addr)
 		client.Send("request")
-		<-handler.received
+		handler.waitForRequest(t)
 
 		srv.Shutdown()
 		handler.releaseAll()
@@ -204,7 +205,7 @@ func TestGracefulShutdown(t *testing.T) {
 		srv := servertest.Start(t, server.Config{GracePeriod: gracePeriod}, handler.handle)
 		client := servertest.Dial(t, srv.Addr)
 		client.Send("request")
-		<-handler.received
+		handler.waitForRequest(t)
 
 		start := time.Now()
 		srv.Shutdown()
@@ -226,7 +227,7 @@ func TestGracefulShutdown(t *testing.T) {
 		for i := range clients {
 			clients[i] = servertest.Dial(t, srv.Addr)
 			clients[i].Send("request")
-			<-handler.received
+			handler.waitForRequest(t)
 		}
 
 		srv.Shutdown()
@@ -249,6 +250,34 @@ func TestGracefulShutdown(t *testing.T) {
 		assert.GreaterOrEqual(t, elapsed, gracePeriod, "closed before the grace period expired")
 		assert.Less(t, elapsed, gracePeriod+tolerance, "closed too long after the grace period expired")
 		requireStoppedWithin(t, srv, tolerance)
+	})
+
+	t.Run("cancels in-flight requests as soon as shutdown starts without a grace period", func(t *testing.T) {
+		for _, gracePeriod := range []time.Duration{0, -time.Second} {
+			t.Run(gracePeriod.String(), func(t *testing.T) {
+				handler := newBlockingHandler()
+				srv := servertest.Start(t, server.Config{GracePeriod: gracePeriod}, handler.handle)
+				client := servertest.Dial(t, srv.Addr)
+				client.Send("request")
+				handler.waitForRequest(t)
+
+				srv.Shutdown()
+
+				assert.Equal(t, "cancelled:request", client.Receive())
+				requireStoppedWithin(t, srv, tolerance)
+			})
+		}
+	})
+
+	t.Run("serves a request completed during the grace period", func(t *testing.T) {
+		srv := servertest.Start(t, server.Config{GracePeriod: longGracePeriod}, echo)
+		client := connect(t, srv)
+		client.SendRaw("req")
+
+		srv.Shutdown()
+		client.SendRaw("uest\n")
+
+		assert.Equal(t, "echo:request", client.Receive())
 	})
 
 	t.Run("discards a partially received request when the grace period expires", func(t *testing.T) {
@@ -336,5 +365,18 @@ func requireStoppedWithin(t *testing.T, srv *servertest.Server, timeout time.Dur
 		require.NoError(t, srv.Err())
 	case <-time.After(timeout):
 		t.Fatalf("server did not stop within %v", timeout)
+	}
+}
+
+// waitForRequest bounds synchronization too: a server regression should fail
+// the test instead of hanging before the client's read timeout can help.
+func (h *blockingHandler) waitForRequest(t *testing.T) string {
+	t.Helper()
+	select {
+	case request := <-h.received:
+		return request
+	case <-time.After(time.Second):
+		t.Fatal("handler did not receive the request within one second")
+		return ""
 	}
 }

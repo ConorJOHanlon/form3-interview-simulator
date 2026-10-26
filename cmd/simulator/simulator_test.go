@@ -138,6 +138,21 @@ func TestSimulator(t *testing.T) {
 		assert.InDelta(t, gracePeriod, time.Since(start), float64(tolerance))
 		client.RequireClosed()
 	})
+
+	t.Run("gives a payment sent during shutdown only the rest of the grace period", func(t *testing.T) {
+		const gracePeriod = 300 * time.Millisecond
+		srv := servertest.Start(t, server.Config{GracePeriod: gracePeriod}, scheme.Handle)
+		client := connect(t, srv.Addr)
+
+		start := time.Now()
+		srv.Shutdown()
+		time.Sleep(gracePeriod / 2)
+		client.Send("PAYMENT|5000")
+
+		assert.Equal(t, "RESPONSE|REJECTED|Cancelled", client.Receive())
+		assert.InDelta(t, gracePeriod, time.Since(start), float64(tolerance))
+		client.RequireClosed()
+	})
 }
 
 // connect returns a client the server has already accepted, proven by a
