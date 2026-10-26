@@ -2,7 +2,10 @@ package scheme
 
 import (
 	"context"
+	"errors"
 	"math"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +72,35 @@ func TestParsePayment(t *testing.T) {
 				assert.ErrorIs(t, err, errInvalidAmount)
 			})
 		}
+	})
+}
+
+// FuzzParsePayment checks that no input can crash the parser and that only
+// canonical "PAYMENT|<positive integer>" requests are ever accepted.
+func FuzzParsePayment(f *testing.F) {
+	for _, seed := range []string{
+		"PAYMENT|10", "PAYMENT|007", "PAYMENT|0", "PAYMENT|-5", "PAYMENT|+5", "PAYMENT|",
+		"PAYMENT|1|2", "PAYMENT|99999999999999999999", "INVALID|10", "",
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, request string) {
+		amount, err := parsePayment(request)
+		if err != nil {
+			if !errors.Is(err, errInvalidRequest) && !errors.Is(err, errInvalidAmount) {
+				t.Fatalf("unexpected error for %q: %v", request, err)
+			}
+			return
+		}
+
+		require.GreaterOrEqual(t, amount, 1, "accepted a non-positive amount from %q", request)
+		digits, ok := strings.CutPrefix(request, "PAYMENT|")
+		require.True(t, ok, "accepted %q without the PAYMENT prefix", request)
+		require.Equal(t, strconv.Itoa(amount), strings.TrimLeft(digits, "0"), "amount does not match %q", request)
+
+		delay := processingDelay(amount)
+		require.True(t, delay >= 0 && delay <= maxDelay, "delay %v for amount %d is out of range", delay, amount)
 	})
 }
 
