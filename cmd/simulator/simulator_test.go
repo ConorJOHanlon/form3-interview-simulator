@@ -120,6 +120,24 @@ func TestSimulator(t *testing.T) {
 		long.RequireClosed()
 		idle.RequireClosed()
 	})
+
+	t.Run("cancels unfinished requests sent together on one connection", func(t *testing.T) {
+		const gracePeriod = 300 * time.Millisecond
+		srv := servertest.Start(t, server.Config{GracePeriod: gracePeriod}, scheme.Handle)
+		client := connect(t, srv.Addr)
+
+		client.SendRaw("PAYMENT|100\nPAYMENT|1000\n")
+		start := time.Now()
+		srv.Shutdown()
+
+		// The first payment is instant. The second is still processing when
+		// the grace period expires. Buffered versus unread trailing requests
+		// are tested with controlled read boundaries in internal/server.
+		assert.Equal(t, "RESPONSE|ACCEPTED|Transaction processed", client.Receive())
+		assert.Equal(t, "RESPONSE|REJECTED|Cancelled", client.Receive())
+		assert.InDelta(t, gracePeriod, time.Since(start), float64(tolerance))
+		client.RequireClosed()
+	})
 }
 
 // connect returns a client the server has already accepted, proven by a

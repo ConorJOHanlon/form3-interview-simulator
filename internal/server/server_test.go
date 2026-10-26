@@ -119,6 +119,17 @@ func TestRequestFraming(t *testing.T) {
 		assert.Equal(t, "echo:second", client.Receive())
 	})
 
+	t.Run("answers a complete request after the client stops sending", func(t *testing.T) {
+		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
+
+		// Like `echo request | nc -N`: send, then close the sending side.
+		client.Send("request")
+		client.CloseWrite()
+
+		assert.Equal(t, "echo:request", client.Receive())
+		client.RequireClosed()
+	})
+
 	t.Run("discards a request without a terminator when the client closes", func(t *testing.T) {
 		client := servertest.Dial(t, servertest.Start(t, server.Config{}, echo).Addr)
 
